@@ -3,22 +3,6 @@ var fs = require('fs');
 var sql = require('mysql');
 var urlParser = require('url');
 
-
-function dbConnect (callback) {
-    let sqlconn = sql.createConnection({
-        host: "localhost",
-        user: "root",
-        password: "",
-        database: "servprogsolutionsRest"
-    });
-    
-    sqlconn.connect(function (err) {
-        if (err) throw err;
-        console.log('connected :)');
-        callback(sqlconn);
-    });
-}
-
 var endpoints = new Map();
 
 endpoints.set('/bookings/add', (req, urlQuery, sqlconn, callback) => {
@@ -42,15 +26,31 @@ endpoints.set('/bookings', (req, urlQuery, sqlconn, callback) => {
     });
 });
 
-const readBody = (req, res) => {
-    let body = []
-    return req.on('data', (chunk) => {
-        body.push(chunk);
-    }).on('end', () => {
-        body = Buffer.concat(body).toString();
-        if (body) req.body = JSON.parse(body);
-        return handleRequest(req, res)
-    })
+const authenticated = (headers, sqlconn, res, callback) => {
+    sqlconn.query(`SELECT * FROM apikeys WHERE apikey = '${headers['token']}'`, (err, results) => {
+        if (err) throw err;
+        if (results.length > 0)
+            callback();
+        else{
+            res.writeHead(401);
+            return res.end();
+        }
+    });
+}
+
+function dbConnect(callback) {
+    let sqlconn = sql.createConnection({
+        host: "localhost",
+        user: "root",
+        password: "",
+        database: "servprogsolutionsRest"
+    });
+
+    sqlconn.connect(function (err) {
+        if (err) throw err;
+        console.log('connected :)');
+        callback(sqlconn);
+    });
 }
 
 const handleRequest = (req, res) => {
@@ -89,16 +89,15 @@ const handleRequest = (req, res) => {
     });
 }
 
-const authenticated = (headers, sqlconn, res, callback) => {
-    sqlconn.query(`SELECT * FROM apikeys WHERE apikey = '${headers['token']}'`, (err, results) => {
-        if (err) throw err;
-        if (results.length > 0)
-            callback();
-        else{
-            res.writeHead(401);
-            return res.end();
-        }
-    });
+const readBody = (req, res) => {
+    let body = []
+    return req.on('data', (chunk) => {
+        body.push(chunk);
+    }).on('end', () => {
+        body = Buffer.concat(body).toString();
+        if (body) req.body = JSON.parse(body);
+        return handleRequest(req, res)
+    })
 }
 
-http.createServer(readBody).listen(8080);
+http.createServer(readBody).listen(8081);
